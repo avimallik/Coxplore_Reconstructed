@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/action_item1"
+        android:icon="@drawable/bus"
+        android:title="@string/bus_tab_title"/>
+    <item
+        android:id="@+id/action_item2"
+        android:icon="@drawable/airplane"
+        android:title="@string/airplane_tab_title"/>
+
+</menu>
