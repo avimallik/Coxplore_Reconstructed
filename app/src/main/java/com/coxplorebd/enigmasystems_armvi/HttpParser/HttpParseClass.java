@@ -1,152 +1,121 @@
 package com.coxplorebd.enigmasystems_armvi.HttpParser;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.NameValuePair;
-import org.apache.http.client.ClientProtocolException;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.entity.UrlEncodedFormEntity;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.message.BasicNameValuePair;
-import org.apache.http.params.BasicHttpParams;
-import org.apache.http.params.HttpConnectionParams;
-import org.apache.http.params.HttpParams;
-import org.apache.http.protocol.HTTP;
-
 import java.io.BufferedReader;
-import java.io.IOException;
+import java.io.BufferedWriter;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URLEncoder;
-import java.util.ArrayList;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
+
 
 /**
  * Created by Arm_AVI on 4/29/2018.
  */
 
 public class HttpParseClass {
-    private ArrayList<NameValuePair> params;
-    private ArrayList<NameValuePair> headers;
 
-    private String url;
-    private int responseCode;
-    private String message;
-    private String response;
+    private String urlString;
+    private String response = "";
+    private String errorMessage = "";
+    private int responseCode = -1;
+
+    public HttpParseClass(String url) {
+        this.urlString = url;
+    }
+
+    public void ExecutePostRequest() {
+        ExecutePostRequest(null);
+    }
+
+    public void ExecutePostRequest(HashMap<String, String> postDataParams) {
+        HttpURLConnection connection = null;
+        BufferedReader reader = null;
+
+        try {
+            URL url = new URL(urlString);
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(15000);
+
+            if (postDataParams != null && !postDataParams.isEmpty()) {
+                connection.setRequestMethod("POST");
+                connection.setDoInput(true);
+                connection.setDoOutput(true);
+                connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+
+                StringBuilder postData = new StringBuilder();
+                boolean first = true;
+                for (Map.Entry<String, String> entry : postDataParams.entrySet()) {
+                    if (!first) postData.append("&");
+                    first = false;
+                    postData.append(java.net.URLEncoder.encode(entry.getKey(), "UTF-8"));
+                    postData.append("=");
+                    postData.append(java.net.URLEncoder.encode(entry.getValue(), "UTF-8"));
+                }
+
+                OutputStream os = connection.getOutputStream();
+                BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(os, "UTF-8"));
+                writer.write(postData.toString());
+                writer.flush();
+                writer.close();
+                os.close();
+            } else {
+                connection.setRequestMethod("GET");
+                connection.setDoInput(true);
+            }
+
+            connection.connect();
+            responseCode = connection.getResponseCode();
+
+            InputStream inputStream;
+            if (responseCode >= 200 && responseCode < 300) {
+                inputStream = connection.getInputStream();
+            } else {
+                inputStream = connection.getErrorStream();
+            }
+
+            if (inputStream != null) {
+                reader = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
+                StringBuilder sb = new StringBuilder();
+                String line;
+
+                while ((line = reader.readLine()) != null) {
+                    sb.append(line);
+                }
+
+                response = sb.toString();
+            } else {
+                response = "";
+            }
+
+        } catch (Exception e) {
+            errorMessage = e.getMessage() != null ? e.getMessage() : "Network error";
+            response = "";
+        } finally {
+            try {
+                if (reader != null) reader.close();
+            } catch (Exception ignored) {
+            }
+
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
 
     public String getResponse() {
         return response;
-    }
-
-    public String getErrorMessage() {
-        return message;
     }
 
     public int getResponseCode() {
         return responseCode;
     }
 
-    public HttpParseClass(String url) {
-
-        this.url = url;
-        params = new ArrayList<NameValuePair>();
-        headers = new ArrayList<NameValuePair>();
+    public String getErrorMessage() {
+        return errorMessage;
     }
-
-    public void AddParam(String name, String value) {
-        params.add(new BasicNameValuePair(name, value));
-    }
-
-    public void AddHeader(String name, String value) {
-        headers.add(new BasicNameValuePair(name, value));
-    }
-
-    public void ExecuteGetRequest() throws Exception {
-        String combinedParams = "";
-        if (!params.isEmpty()) {
-            combinedParams += "?";
-            for (NameValuePair p : params) {
-                String paramString = p.getName() + "=" + URLEncoder.encode(p.getValue(), "UTF-8");
-                if (combinedParams.length() > 1) {
-                    combinedParams += "&" + paramString;
-                } else {
-                    combinedParams += paramString;
-                }
-            }
-        }
-
-        HttpGet request = new HttpGet(url + combinedParams);
-        for (NameValuePair h : headers) {
-            request.addHeader(h.getName(), h.getValue());
-        }
-
-        executeRequest(request, url);
-    }
-
-    public void ExecutePostRequest() throws Exception {
-        HttpPost request = new HttpPost(url);
-        for (NameValuePair h : headers) {
-            request.addHeader(h.getName(), h.getValue());
-        }
-
-        if (!params.isEmpty()) {
-            request.setEntity(new UrlEncodedFormEntity(params, HTTP.UTF_8));
-        }
-
-        executeRequest(request, url);
-    }
-
-    private void executeRequest(HttpUriRequest request, String url) {
-        HttpParams httpParameters = new BasicHttpParams();
-        int timeoutConnection = 10000;
-        HttpConnectionParams.setConnectionTimeout(httpParameters, timeoutConnection);
-        int timeoutSocket = 10000;
-        HttpConnectionParams.setSoTimeout(httpParameters, timeoutSocket);
-
-        HttpClient client = new DefaultHttpClient(httpParameters);
-        HttpResponse httpResponse;
-
-        try {
-            httpResponse = client.execute(request);
-            responseCode = httpResponse.getStatusLine().getStatusCode();
-            message = httpResponse.getStatusLine().getReasonPhrase();
-
-            HttpEntity entity = httpResponse.getEntity();
-            if (entity != null) {
-                InputStream instream = entity.getContent();
-                response = convertStreamToString(instream);
-                instream.close();
-            }
-        } catch (ClientProtocolException e) {
-            client.getConnectionManager().shutdown();
-            e.printStackTrace();
-        } catch (IOException e) {
-            client.getConnectionManager().shutdown();
-            e.printStackTrace();
-        }
-    }
-
-    private String convertStreamToString(InputStream is) {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-        StringBuilder sb = new StringBuilder();
-
-        String line = null;
-        try {
-            while ((line = reader.readLine()) != null) {
-                sb.append(line + "\n");
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                is.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-        return sb.toString();
-    }
-
 }

@@ -1,9 +1,11 @@
 package com.coxplorebd.enigmasystems_armvi.explore;
 
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 
 import android.text.Html;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -23,80 +25,113 @@ import org.apache.http.params.HttpParams;
 import org.apache.http.util.EntityUtils;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 public class CautionFragment extends Fragment {
 
     TextView cautionTxt;
 
     public static CautionFragment newInstance() {
-        CautionFragment fragment = new CautionFragment();
-        return fragment;
-    }
-
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        new CautionNetworkGenerator().execute();
+        return new CautionFragment();
     }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        View rootViewCaution = inflater.inflate(R.layout.fragment_item_caution,
-                container, false);
-        cautionTxt = (TextView) rootViewCaution.findViewById(R.id.cautionTxt);
+        View rootViewCaution = inflater.inflate(R.layout.fragment_item_caution, container, false);
+        cautionTxt = rootViewCaution.findViewById(R.id.cautionTxt);
+
+        new CautionNetworkGenerator().execute();
+
         return rootViewCaution;
     }
 
     public class CautionNetworkGenerator extends AsyncTask<Void, Void, String> {
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-        }
 
         @Override
-        protected String doInBackground(Void... params) {
-            String out = null;
-            JSONObject jObject;
+        protected String doInBackground(Void... voids) {
+            HttpURLConnection connection = null;
+            BufferedReader reader = null;
+
             try {
-                DefaultHttpClient httpClient = new DefaultHttpClient();
+                URL url = new URL("http://www.coxplorebd.com/coxplore_api/caution_api.php");
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(15000);
+                connection.setReadTimeout(15000);
+                connection.connect();
 
-                final HttpParams httpParameters = httpClient.getParams();
+                int responseCode = connection.getResponseCode();
+                InputStream inputStream;
 
-                HttpConnectionParams.setConnectionTimeout(httpParameters, 15000);
-                HttpConnectionParams.setSoTimeout(httpParameters, 15000);
-                HttpGet httpPost = new HttpGet("http://www.coxplorebd.com/coxplore_api/caution_api.php");
-                HttpResponse httpResponse = httpClient.execute(httpPost);
-                HttpEntity httpEntity = httpResponse.getEntity();
+                if (responseCode >= 200 && responseCode < 300) {
+                    inputStream = connection.getInputStream();
+                } else {
+                    inputStream = connection.getErrorStream();
+                }
 
-                out = EntityUtils.toString(httpEntity, org.apache.http.protocol.HTTP.UTF_8);
+                if (inputStream == null) {
+                    return null;
+                }
 
-            } catch (UnsupportedEncodingException e) {
-                e.printStackTrace();
-            } catch (ClientProtocolException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
-                e.printStackTrace();
+                reader = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
+                StringBuilder output = new StringBuilder();
+                String line;
+
+                while ((line = reader.readLine()) != null) {
+                    output.append(line);
+                }
+
+                return output.toString();
+
+            } catch (Exception e) {
+                Log.e("API_ERROR", "Network error", e);
+                return null;
+            } finally {
+                try {
+                    if (reader != null) {
+                        reader.close();
+                    }
+                } catch (Exception e) {
+                    Log.e("API_ERROR", "Reader close error", e);
+                }
+
+                if (connection != null) {
+                    connection.disconnect();
+                }
             }
-
-            return out;
         }
 
         @Override
         protected void onPostExecute(String result) {
             super.onPostExecute(result);
-            try{
 
+            if (!isAdded() || getActivity() == null || result == null || result.isEmpty()) {
+                Log.e("API_ERROR", "Empty or null response");
+                return;
+            }
+
+            try {
                 JSONObject object = new JSONObject(result);
-                String responseCaution = object.getString("caution_details");
-                cautionTxt.setText(Html.fromHtml(responseCaution));
+                String responseCaution = object.optString("caution_details", "");
 
-            }catch (Exception e){
-                e.printStackTrace();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    cautionTxt.setText(Html.fromHtml(responseCaution, Html.FROM_HTML_MODE_LEGACY));
+                } else {
+                    cautionTxt.setText(Html.fromHtml(responseCaution));
+                }
+
+                Log.d("API_RAW_RESPONSE", result);
+
+            } catch (Exception e) {
+                Log.e("API_ERROR", "Invalid JSON: " + result, e);
             }
         }
     }
-
 }

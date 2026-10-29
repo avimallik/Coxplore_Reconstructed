@@ -27,8 +27,13 @@ import org.apache.http.params.HttpParams;
 import org.apache.http.util.EntityUtils;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 
 /**
@@ -37,13 +42,12 @@ import java.util.ArrayList;
 
 public class LetsGoFragment extends Fragment {
 
-    TextView letsGoTxt ;
+    TextView letsGoTxt;
     SliderView imageSlider;
     ArrayList<Slider> sliderList;
 
     public static LetsGoFragment newInstance() {
-        LetsGoFragment fragment = new LetsGoFragment();
-        return fragment;
+        return new LetsGoFragment();
     }
 
     @Override
@@ -55,65 +59,91 @@ public class LetsGoFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        View rootView = inflater.inflate(R.layout.fragment_item_letsgo,
-                container, false);
+        View rootView = inflater.inflate(R.layout.fragment_item_letsgo, container, false);
 
-        letsGoTxt = (TextView) rootView.findViewById(R.id.letsGoTxt);
-        imageSlider = (SliderView) rootView.findViewById(R.id.image_slider);
+        letsGoTxt = rootView.findViewById(R.id.letsGoTxt);
+        imageSlider = rootView.findViewById(R.id.image_slider);
 
         return rootView;
     }
 
-    //Letsgo Network Generator
     public class LetsGoNetworkGenerator extends AsyncTask<Void, Void, String> {
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-        }
 
         @Override
-        protected String doInBackground(Void... params) {
-            String out = null;
-            JSONObject jObject;
+        protected String doInBackground(Void... voids) {
+            HttpURLConnection connection = null;
+            BufferedReader reader = null;
+
             try {
-                DefaultHttpClient httpClient = new DefaultHttpClient();
+                URL url = new URL("http://www.coxplorebd.com/coxplore_api/explore_api.php");
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(15000);
+                connection.setReadTimeout(15000);
+                connection.connect();
 
-                final HttpParams httpParameters = httpClient.getParams();
+                int responseCode = connection.getResponseCode();
+                InputStream inputStream;
 
-                HttpConnectionParams.setConnectionTimeout(httpParameters, 15000);
-                HttpConnectionParams.setSoTimeout(httpParameters, 15000);
-                HttpGet httpPost = new HttpGet("http://www.coxplorebd.com/coxplore_api/explore_api.php");
-                HttpResponse httpResponse = httpClient.execute(httpPost);
-                HttpEntity httpEntity = httpResponse.getEntity();
+                if (responseCode >= 200 && responseCode < 300) {
+                    inputStream = connection.getInputStream();
+                } else {
+                    inputStream = connection.getErrorStream();
+                }
 
-                out = EntityUtils.toString(httpEntity, org.apache.http.protocol.HTTP.UTF_8);
+                if (inputStream == null) {
+                    return null;
+                }
 
-            } catch (UnsupportedEncodingException e) {
+                reader = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
+                StringBuilder output = new StringBuilder();
+                String line;
+
+                while ((line = reader.readLine()) != null) {
+                    output.append(line);
+                }
+
+                return output.toString();
+
+            } catch (Exception e) {
                 e.printStackTrace();
-            } catch (ClientProtocolException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
-                e.printStackTrace();
+                return null;
+            } finally {
+                try {
+                    if (reader != null) {
+                        reader.close();
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
+                if (connection != null) {
+                    connection.disconnect();
+                }
             }
-
-            return out;
         }
 
         @Override
         protected void onPostExecute(String result) {
             super.onPostExecute(result);
-            try{
+
+            if (!isAdded() || getActivity() == null || result == null || result.isEmpty()) {
+                return;
+            }
+
+            try {
                 JSONObject object = new JSONObject(result);
 
-                String responseLetsGo = object.getString("explore_details");
-                String imageUrlOne = object.getString("image_one_path");
-                String imageUrlTwo = object.getString("image_two_path");
-                String imageUrlThree = object.getString("image_three_path");
+                String responseLetsGo = object.optString("explore_details");
+                String imageUrlOne = object.optString("image_one_path");
+                String imageUrlTwo = object.optString("image_two_path");
+                String imageUrlThree = object.optString("image_three_path");
 
                 sliderList = new ArrayList<>();
-                sliderList.add(new Slider(imageUrlOne));
-                sliderList.add(new Slider(imageUrlTwo));
-                sliderList.add(new Slider(imageUrlThree));
+                if (!imageUrlOne.isEmpty()) sliderList.add(new Slider(imageUrlOne));
+                if (!imageUrlTwo.isEmpty()) sliderList.add(new Slider(imageUrlTwo));
+                if (!imageUrlThree.isEmpty()) sliderList.add(new Slider(imageUrlThree));
+
                 SliderAdapter adapter = new SliderAdapter(getActivity(), sliderList);
 
                 imageSlider.setAutoCycleDirection(SliderView.LAYOUT_DIRECTION_LTR);
@@ -122,12 +152,15 @@ public class LetsGoFragment extends Fragment {
                 imageSlider.setAutoCycle(true);
                 imageSlider.startAutoCycle();
 
-                letsGoTxt.setText(Html.fromHtml(responseLetsGo));
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                    letsGoTxt.setText(Html.fromHtml(responseLetsGo, Html.FROM_HTML_MODE_LEGACY));
+                } else {
+                    letsGoTxt.setText(Html.fromHtml(responseLetsGo));
+                }
 
-            }catch (Exception e){
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         }
     }
-
 }

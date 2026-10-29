@@ -36,114 +36,88 @@ public class AirplaneFragment extends Fragment {
     ListView listView;
     FloatingActionButton refreshBtn;
     ProgressBar progressBar;
-    ArrayList<TransportModel> UserList = new ArrayList<TransportModel>();
+    ArrayList<TransportModel> UserList = new ArrayList<>();
     String HttpURL = "http://www.coxplorebd.com/coxplore_api/transport_airplane_api.php";
 
     ListViewAdapterTransport listViewAdapterTransport;
 
     public static AirplaneFragment newInstance() {
-        AirplaneFragment fragment = new AirplaneFragment();
-        return fragment;
-    }
-
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        new ParseJSonDataClass(getActivity()).execute();
-
+        return new AirplaneFragment();
     }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        View rootViewAirplnae = inflater.inflate(R.layout.fragment_item_airplane,
-                container, false);
-        listView = (ListView) rootViewAirplnae.findViewById(R.id.listView1);
-        progressBar = (ProgressBar) rootViewAirplnae.findViewById(R.id.progressbar);
+        View rootViewAirplnae = inflater.inflate(R.layout.fragment_item_airplane, container, false);
 
-        refreshBtn = (FloatingActionButton) rootViewAirplnae.findViewById(R.id.refreshBtn);
+        listView = rootViewAirplnae.findViewById(R.id.listView1);
+        progressBar = rootViewAirplnae.findViewById(R.id.progressbar);
+        refreshBtn = rootViewAirplnae.findViewById(R.id.refreshBtn);
+
+        new ParseJSonDataClass(requireContext()).execute();
+
         refreshBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                new ParseJSonDataClass(getActivity()).execute();
+                new ParseJSonDataClass(requireContext()).execute();
             }
         });
+
         return rootViewAirplnae;
     }
 
     private class ParseJSonDataClass extends AsyncTask<Void, Void, Void> {
-        public Context context;
+        public android.content.Context context;
         String FinalJSonResult;
 
-        public ParseJSonDataClass(Context context) {
+        public ParseJSonDataClass(android.content.Context context) {
             this.context = context;
         }
 
         @Override
         protected void onPreExecute() {
             super.onPreExecute();
+            UserList.clear();
+            progressBar.setVisibility(View.VISIBLE);
         }
 
         @Override
         protected Void doInBackground(Void... arg0) {
-
             HttpParseClass httpParseClass = new HttpParseClass(HttpURL);
             try {
                 httpParseClass.ExecutePostRequest();
+
                 if (httpParseClass.getResponseCode() == 200) {
                     FinalJSonResult = httpParseClass.getResponse();
-                    if (FinalJSonResult != null) {
 
-                        JSONArray jsonArray = null;
-                        try {
+                    if (FinalJSonResult != null && !FinalJSonResult.isEmpty()) {
+                        JSONArray jsonArray = new JSONArray(FinalJSonResult);
+                        UserList = new ArrayList<>();
 
-                            jsonArray = new JSONArray(FinalJSonResult);
-                            JSONObject jsonObject;
-                            TransportModel user;
+                        for (int i = 0; i < jsonArray.length(); i++) {
+                            JSONObject jsonObject = jsonArray.getJSONObject(i);
 
-                            UserList = new ArrayList<TransportModel>();
+                            String Uname = jsonObject.optString("transport_name");
+                            String Uphone = jsonObject.optString("transport_phone");
+                            String Udescription = jsonObject.optString("transport_details");
+                            String Uimage = jsonObject.optString("image_path");
+                            String Uweb = jsonObject.optString("transport_website");
 
-                            for (int i = 0; i < jsonArray.length(); i++) {
-
-                                jsonObject = jsonArray.getJSONObject(i);
-
-                                String Uname = jsonObject.getString("transport_name").toString();
-
-                                String Uphone = jsonObject.getString("transport_phone").toString();
-
-                                String Udescription = jsonObject.getString("transport_details").toString();
-
-                                String Uimage = jsonObject.getString("image_path").toString();
-
-                                String Uweb = jsonObject.getString("transport_website").toString();
-
-                                user = new TransportModel(Uname, Uphone, Udescription, Uimage, Uweb);
-
-                                UserList.add(user);
-                            }
-                        } catch (JSONException e) {
-                            // TODO Auto-generated catch block
-                            e.printStackTrace();
+                            TransportModel user = new TransportModel(Uname, Uphone, Udescription, Uimage, Uweb);
+                            UserList.add(user);
                         }
                     }
-                } else {
-
-                    Toast.makeText(context, httpParseClass.getErrorMessage(), Toast.LENGTH_SHORT).show();
                 }
             } catch (Exception e) {
-                // TODO Auto-generated catch block
                 e.printStackTrace();
             }
+
             return null;
         }
 
         @Override
-        protected void onPostExecute(Void result){
-//
-//            ProgressBar progressBar;
-//            progressBar = (ProgressBar) findViewById(R.id.progressbar);
-//            progressBar.setVisibility(View.INVISIBLE);
-
+        protected void onPostExecute(Void result) {
+            if (!isAdded() || getActivity() == null) return;
 
             progressBar.setVisibility(View.INVISIBLE);
             listViewAdapterTransport = new ListViewAdapterTransport(getActivity(), R.layout.listview_items_transport, UserList);
@@ -152,30 +126,17 @@ public class AirplaneFragment extends Fragment {
             listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                 @Override
                 public void onItemClick(final AdapterView<?> adapterView, View view, final int position, long l) {
+                    TransportModel dataPicker = (TransportModel) adapterView.getItemAtPosition(position);
+                    Intent transportDataDisplyIntentAirplane = new Intent(getActivity(), TransportDataDisplay.class);
 
-//                    TransportModel dataPicker = (TransportModel) adapterView.getItemAtPosition(position);
-//                    Intent transportDataDisplyIntentAirplane = new Intent(getActivity(), TransportDataDisplay.class);
-//
-//                    transportDataDisplyIntentAirplane.putExtra("transport_name", dataPicker.getName());
-//                    transportDataDisplyIntentAirplane.putExtra("transport_phone", dataPicker.getPhone());
-//                    transportDataDisplyIntentAirplane.putExtra("transport_web", dataPicker.getWeb());
-//                    transportDataDisplyIntentAirplane.putExtra("transport_image", dataPicker.getImage());
-//                    transportDataDisplyIntentAirplane.putExtra("transport_description", dataPicker.getDescription());
-//                    startActivity(transportDataDisplyIntentAirplane);
-
-                                TransportModel dataPicker = (TransportModel) adapterView.getItemAtPosition(position);
-                                Intent transportDataDisplyIntentAirplane = new Intent(getActivity(), TransportDataDisplay.class);
-
-                                transportDataDisplyIntentAirplane.putExtra("transport_name", dataPicker.getName());
-                                transportDataDisplyIntentAirplane.putExtra("transport_phone", dataPicker.getPhone());
-                                transportDataDisplyIntentAirplane.putExtra("transport_web", dataPicker.getWeb());
-                                transportDataDisplyIntentAirplane.putExtra("transport_image", dataPicker.getImage());
-                                transportDataDisplyIntentAirplane.putExtra("transport_description", dataPicker.getDescription());
-                                startActivity(transportDataDisplyIntentAirplane);
-
+                    transportDataDisplyIntentAirplane.putExtra("transport_name", dataPicker.getName());
+                    transportDataDisplyIntentAirplane.putExtra("transport_phone", dataPicker.getPhone());
+                    transportDataDisplyIntentAirplane.putExtra("transport_web", dataPicker.getWeb());
+                    transportDataDisplyIntentAirplane.putExtra("transport_image", dataPicker.getImage());
+                    transportDataDisplyIntentAirplane.putExtra("transport_description", dataPicker.getDescription());
+                    startActivity(transportDataDisplyIntentAirplane);
                 }
             });
         }
     }
-
 }
